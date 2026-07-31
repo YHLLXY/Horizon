@@ -1,11 +1,11 @@
 name: Daily Horizon Summary
 
 on:
-  push:                    # 临时加一个 push 触发，强制索引
+  push:
     branches:
       - master
   schedule:
-    - cron: '0 23 * * *'
+    - cron: "0 23 * * *"
   workflow_dispatch:
 
 jobs:
