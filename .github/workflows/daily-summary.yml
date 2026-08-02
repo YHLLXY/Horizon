@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write  # Needed to commit changes
+      models: read      # GitHub Models free API
 
     steps:
       - name: Checkout code
@@ -28,49 +29,12 @@ jobs:
       - name: Install dependencies
         run: uv sync
 
-      - name: Debug - Test API and scoring
-        env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-        run: |
-          uv run python -c "
-          import asyncio, os
-          from src.models import AIConfig, AIProvider, ContentItem, SourceType
-          from src.ai.client import create_ai_client
-          from src.ai.analyzer import ContentAnalyzer
-          from datetime import datetime, timezone
-
-          async def test():
-              config = AIConfig(
-                  provider=AIProvider.DEEPSEEK,
-                  model='deepseek-v4-pro',
-                  api_key_env='DEEPSEEK_API_KEY',
-                  base_url='https://api.deepseek.com',
-                  temperature=0.3,
-                  max_tokens=8192,
-              )
-              client = create_ai_client(config)
-              analyzer = ContentAnalyzer(client)
-              now = datetime.now(timezone.utc)
-
-              items = [
-                  ContentItem(id='t1', source_type=SourceType.HACKERNEWS, title='OpenAI GPT-5.6 Luna 80% Price Cut', url='https://example.com/1', published_at=now, content='OpenAI announced 80% price cut', metadata={'score': 500}),
-                  ContentItem(id='t2', source_type=SourceType.RSS, title='Weekly Rust Crate Roundup', url='https://example.com/2', published_at=now, content='Roundup of Rust crates', metadata={}),
-              ]
-              print(f'Testing with model={config.model}...')
-              results = await analyzer.analyze_batch(items)
-              for item in results:
-                  print(f'  Score={item.ai_score} Reason={item.ai_reason[:80]}')
-
-          asyncio.run(test())
-          "
-
       - name: Prepare GitHub Actions config
         run: cp data/config.github.json data/config.json
 
       - name: Run Horizon
         env:
-          DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: uv run horizon --hours 24
 
       - name: Set current date as environment variable
