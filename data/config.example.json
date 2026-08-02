@@ -132,6 +132,7 @@
     "ai_score_threshold": 6.0,
     "time_window_hours": 24,
     "max_items": null,
+    "max_analyze": 45,
     "category_groups": {},
     "default_group": "other",
     "default_group_limit": null

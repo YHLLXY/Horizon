@@ -182,6 +182,7 @@ class HorizonOrchestrator:
             else None
         )
         self.last_fetch_report: Optional[FetchReport] = None
+        self.last_analysis_failures: int = 0
 
     async def run(self, force_hours: int = None) -> None:
         """Execute the complete workflow.
@@ -229,6 +230,12 @@ class HorizonOrchestrator:
             analyzed_items = await self._analyze_content(merged_items)
             self.console.print(f"🤖 Analyzed {len(analyzed_items)} items with AI\n")
 
+            if self.last_analysis_failures:
+                self.console.print(
+                    f"[bold red]⚠️  {self.last_analysis_failures}/{len(analyzed_items)} "
+                    f"items failed AI analysis (scored 0)[/bold red]\n"
+                )
+
             # 5. Filter, deduplicate, and balance the digest
             filtering_result = await self.filter_items(
                 analyzed_items,
@@ -259,6 +266,26 @@ class HorizonOrchestrator:
             for lang in self.config.ai.languages:
                 summarizer = DailySummarizer()
                 summary = await summarizer.generate_summary(important_items, today, len(all_items), language=lang)
+
+                # Flag silent AI failures instead of presenting an empty report as "no news"
+                if not important_items and self.last_analysis_failures > 0:
+                    if lang == "zh":
+                        warning = (
+                            f"\n\n> ⚠️ **提示**：{len(analyzed_items)} 条待分析内容中有 "
+                            f"{self.last_analysis_failures} 条 AI 评分失败"
+                            "（API 错误或响应解析失败，已按 0 分处理）。\n"
+                            "> 本日报为空可能由**评分故障**导致，而非当天真的没有重要动态。"
+                            "请检查 AI 配置（如 GitHub Models 是否已启用、额度是否充足）。\n"
+                        )
+                    else:
+                        warning = (
+                            f"\n\n> ⚠️ **NOTE**: {self.last_analysis_failures} of "
+                            f"{len(analyzed_items)} items failed AI scoring "
+                            "(API error or unparseable response, scored 0).\n"
+                            "> This empty report may be caused by a **scoring outage**, "
+                            "not by a quiet day. Check your AI provider configuration.\n"
+                        )
+                    summary += warning
 
                 # Save to data/summaries/
                 summary_path = self.storage.save_daily_summary(today, summary, language=lang)
@@ -870,6 +897,10 @@ class HorizonOrchestrator:
     async def _analyze_content(self, items: List[ContentItem]) -> List[ContentItem]:
         """Analyze content items with AI.
 
+        Applies an optional engagement-based pre-filter (filtering.max_analyze)
+        to bound the number of AI calls per run — required for providers with
+        per-day request limits (e.g. GitHub Models free tier: ~50 req/day).
+
         Args:
             items: Items to analyze
 
@@ -881,7 +912,56 @@ class HorizonOrchestrator:
         ai_client = create_ai_client(self.config.ai)
         analyzer = ContentAnalyzer(ai_client, console=self.console)
 
-        return await analyzer.analyze_batch(items)
+        max_analyze = self.config.filtering.max_analyze
+        if max_analyze and len(items) > max_analyze:
+            items, skipped = self._prefilter_for_analysis(items, max_analyze)
+            self.console.print(
+                f"   ⏱️  Pre-filtered {skipped} low-priority items "
+                f"(max_analyze={max_analyze}) to fit the AI call budget\n"
+            )
+
+        analyzed = await analyzer.analyze_batch(items)
+        self.last_analysis_failures = analyzer.failure_count
+        return analyzed
+
+    @staticmethod
+    def _heuristic_priority(item: ContentItem) -> float:
+        """Engagement-based priority used to pre-filter items before AI scoring."""
+        meta = item.metadata
+        priority = 0.0
+        priority += min(int(meta.get("score") or 0), 3000) / 300
+        priority += min(int(meta.get("descendants") or 0), 3000) / 300
+        priority += min(int(meta.get("favorite_count") or 0), 1000) / 100
+        priority += min(int(meta.get("retweet_count") or 0), 1000) / 100
+        priority += min(int(meta.get("reply_count") or 0), 1000) / 100
+        priority += min(int(meta.get("views") or 0), 20000) / 2000
+        priority += min(float(meta.get("upvote_ratio") or 0) * 2.0, 2.0)
+        return priority
+
+    def _prefilter_for_analysis(
+        self,
+        items: List[ContentItem],
+        max_analyze: int,
+    ) -> tuple[List[ContentItem], int]:
+        """Keep the most promising items, guaranteeing at least one per source type."""
+        by_source: Dict[str, List[ContentItem]] = defaultdict(list)
+        for item in items:
+            by_source[item.source_type.value].append(item)
+
+        kept: List[ContentItem] = []
+        seen: set[int] = set()
+        for group in by_source.values():
+            best = max(group, key=self._heuristic_priority)
+            kept.append(best)
+            seen.add(id(best))
+
+        remaining = sorted(
+            (item for item in items if id(item) not in seen),
+            key=self._heuristic_priority,
+            reverse=True,
+        )
+        kept.extend(remaining[: max(0, max_analyze - len(kept))])
+        return kept, len(items) - len(kept)
 
     async def _generate_summary(
         self,

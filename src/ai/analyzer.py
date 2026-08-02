@@ -35,6 +35,9 @@ class ContentAnalyzer:
     def __init__(self, ai_client: AIClient, console: Optional[Console] = None):
         self.client = ai_client
         self.console = console or Console(stderr=True)
+        # Count items that failed AI analysis (exception or unparseable response),
+        # so callers can surface scoring outages instead of silently reporting 0.
+        self.failure_count = 0
 
     @staticmethod
     def _parse_json_response(response: str) -> Optional[dict]:
@@ -67,6 +70,7 @@ class ContentAnalyzer:
                     await self._analyze_item(item)
                 except Exception as e:
                     logger.error("Error analyzing item %s: %s", item.id, e)
+                    self.failure_count += 1
                     item.ai_score = 0.0
                     item.ai_reason = "Analysis failed"
                     item.ai_summary = item.title
@@ -169,6 +173,7 @@ class ContentAnalyzer:
             result = None
         if result is None:
             logger.warning("Could not parse analysis response for %s, using defaults", item.id)
+            self.failure_count += 1
             item.ai_score = 0.0
             item.ai_reason = "Analysis response parse failed"
             item.ai_summary = item.title

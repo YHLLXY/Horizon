@@ -32,6 +32,19 @@ jobs:
       - name: Prepare GitHub Actions config
         run: cp data/config.github.json data/config.json
 
+      - name: Diagnose AI API access (GitHub Models)
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          CODE=$(curl -s -o /tmp/models_test.json -w "%{http_code}" --max-time 30 \
+            -H "Authorization: Bearer $GITHUB_TOKEN" \
+            -H "Content-Type: application/json" \
+            -d '{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Reply with JSON only: {\"ok\": true}"}],"response_format":{"type":"json_object"},"max_tokens":50}' \
+            https://models.inference.ai.azure.com/chat/completions)
+          echo "🔍 GitHub Models API diagnostic: HTTP $CODE"
+          head -c 300 /tmp/models_test.json
+          echo ""
+
       - name: Run Horizon
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -39,6 +52,18 @@ jobs:
 
       - name: Set current date as environment variable
         run: echo "DATE=$(date +'%Y-%m-%d')" >> $GITHUB_ENV
+
+      - name: Health check - daily summary must not be empty
+        run: |
+          set -e
+          for f in docs/_posts/*-summary-*.md; do
+            [ -f "$f" ] || continue
+            if grep -qE "没有达到重要性阈值的条目|none met the importance threshold" "$f"; then
+              echo "::error::Empty daily summary detected ($f) - AI scoring is failing. Review the diagnostic step output."
+              exit 1
+            fi
+          done
+          echo "✅ Health check passed: summaries contain real items"
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4

@@ -484,6 +484,12 @@ class FilteringConfig(BaseModel):
     ai_score_threshold: float = 7.0
     time_window_hours: int = 24
     max_items: Optional[int] = Field(default=None, gt=0)
+    max_analyze: Optional[int] = Field(
+        default=None,
+        gt=0,
+        description="Upper bound on items sent to AI scoring per run "
+        "(pre-filter by engagement; respects per-day API request limits)",
+    )
     category_groups: Dict[str, CategoryGroupConfig] = Field(default_factory=dict)
     default_group: str = "other"
     default_group_limit: Optional[int] = Field(default=None, gt=0)

@@ -62,3 +62,5 @@ logs/*.log
 todo.txt
 .ruff_cache
 .pytest_cache
+# Obsidian knowledge-base note (not part of the project)
+Horizon - 门户口.md
