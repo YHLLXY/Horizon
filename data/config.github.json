@@ -2,12 +2,12 @@
   "version": "1.0",
   "ai": {
     "provider": "openai",
-    "model": "gpt-4.1-mini",
-    "base_url": "https://models.inference.ai.azure.com",
-    "api_key_env": "GITHUB_TOKEN",
+    "model": "openai/gpt-oss-20b:free",
+    "base_url": "https://openrouter.ai/api/v1",
+    "api_key_env": "OPENROUTER_API_KEY",
     "temperature": 0.3,
-    "max_tokens": 4096,
-    "throttle_sec": 6,
+    "max_tokens": 2048,
+    "throttle_sec": 1,
     "languages": ["zh", "en"],
     "analysis_concurrency": 1,
     "enrichment_concurrency": 1
@@ -146,7 +146,7 @@
     "ai_score_threshold": 6.5,
     "time_window_hours": 24,
     "max_items": 25,
-    "max_analyze": 45,
+    "max_analyze": 35,
     "category_groups": {
       "ai": {
         "limit": 8,

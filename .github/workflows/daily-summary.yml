@@ -32,22 +32,22 @@ jobs:
       - name: Prepare GitHub Actions config
         run: cp data/config.github.json data/config.json
 
-      - name: Diagnose AI API access (GitHub Models)
+      - name: Diagnose AI API access (OpenRouter)
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: |
-          CODE=$(curl -s -o /tmp/models_test.json -w "%{http_code}" --max-time 30 \
-            -H "Authorization: Bearer $GITHUB_TOKEN" \
+          CODE=$(curl -s -o /tmp/ai_test.json -w "%{http_code}" --max-time 30 \
+            -H "Authorization: Bearer $OPENROUTER_API_KEY" \
             -H "Content-Type: application/json" \
-            -d '{"model":"gpt-4.1-mini","messages":[{"role":"user","content":"Reply with JSON only: {\"ok\": true}"}],"response_format":{"type":"json_object"},"max_tokens":50}' \
-            https://models.inference.ai.azure.com/chat/completions)
-          echo "🔍 GitHub Models API diagnostic: HTTP $CODE"
-          head -c 300 /tmp/models_test.json
+            -d '{"model":"openai/gpt-oss-20b:free","messages":[{"role":"user","content":"Reply with JSON only: {\"ok\": true}"}],"response_format":{"type":"json_object"},"max_tokens":50}' \
+            https://openrouter.ai/api/v1/chat/completions)
+          echo "🔍 OpenRouter API diagnostic: HTTP $CODE"
+          head -c 300 /tmp/ai_test.json
           echo ""
 
       - name: Run Horizon
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
         run: uv run horizon --hours 24
 
       - name: Set current date as environment variable
