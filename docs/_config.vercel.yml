@@ -1,0 +1,9 @@
+# Vercel 部署覆盖配置（构建时与 _config.yml 合并，本文件后者覆盖前者）
+# 用法见 docs/vercel-deploy.md；构建命令在 docs/vercel.json
+
+# Vercel 站点部署在域名根路径（无子路径），baseurl 必须为空
+baseurl: ""
+
+# 部署完成后把 url 更新为实际 Vercel 域名（影响 feed 的 absolute_url 链接），
+# 例如：url: "https://horizon-daily.vercel.app"
+# url: ""
